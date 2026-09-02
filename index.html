@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+<title>Cadastro Imobiliário e Edificações · Bragança Paulista</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/leaflet.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="js/leaflet.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;}
+:root{--blue:#0175bc;--accent:#FFEF00;--bg:#0d1b2a;--bg-panel:#0f2236;--bg-panel2:#132b42;
+  --bg-card:#1a3550;--border:rgba(255,255,255,.10);--text:#e8eaf0;--muted:#7a9ab5;
+  --header-h:52px;--sidebar-w:318px;--rw:286px;}
+html,body{margin:0;height:100%;overflow:hidden;font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);}
+#map{position:fixed!important;top:var(--header-h)!important;left:0;right:0;bottom:0;width:auto!important;height:auto!important;}
+.leaflet-top,.leaflet-bottom{display:none!important;}
+
+#hd{position:fixed;top:0;left:0;right:0;height:var(--header-h);background:var(--blue);
+  border-bottom:3px solid var(--accent);display:flex;align-items:center;padding:0 16px;z-index:9000;gap:12px;}
+#hd .dot{width:8px;height:8px;background:var(--accent);border-radius:50%;box-shadow:0 0 10px var(--accent);flex-shrink:0;}
+#hd h1{font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:#fff;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap;margin:0;}
+#hd h1 span{color:var(--accent);}
+#hd .sub{font-size:11px;color:rgba(255,255,255,.65);font-weight:300;white-space:nowrap;margin:0;}
+#hd .sep{flex:1;}
+.badge{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;color:var(--accent);
+  border:1px solid rgba(255,239,0,.4);padding:3px 8px;border-radius:4px;white-space:nowrap;}
+#back{background:rgba(255,239,0,.08);border:1px solid rgba(255,239,0,.25);color:rgba(255,255,255,.8);
+  font-size:12px;padding:6px 10px;border-radius:6px;text-decoration:none;}
+#back:hover{color:var(--accent);}
+.hbtn{background:rgba(255,239,0,.1);border:1px solid rgba(255,239,0,.4);color:var(--accent);
+  font-family:'DM Sans',sans-serif;font-size:12px;font-weight:500;padding:6px 12px;border-radius:6px;cursor:pointer;}
+.hbtn:hover{background:rgba(255,239,0,.18);}
+
+.pane{position:fixed;top:var(--header-h);height:calc(100vh - var(--header-h));
+  background:var(--bg-panel);z-index:8000;display:flex;flex-direction:column;
+  transition:transform .25s;overflow:hidden;}
+#sb{left:0;width:var(--sidebar-w);border-right:1px solid var(--border);}
+#sb.hidden{transform:translateX(-100%);}
+#rb{right:0;width:var(--rw);border-left:1px solid var(--border);}
+#rb.hidden{transform:translateX(100%);}
+.pane-h{padding:12px 15px 9px;border-bottom:1px solid var(--border);flex-shrink:0;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.pane-h span{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;color:var(--accent);
+  letter-spacing:.07em;text-transform:uppercase;}
+.pane-b{flex:1;overflow-y:auto;min-height:0;}
+.pane-b::-webkit-scrollbar{width:5px;}
+.pane-b::-webkit-scrollbar-track{background:transparent;}
+.pane-b::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:3px;}
+/* cartão da unidade sob o cursor */
+.sel-card{background:rgba(255,239,0,.07);border-left:2px solid var(--accent);
+  border-radius:0 5px 5px 0;padding:9px 11px;margin-bottom:13px;}
+.sel-n{font-family:'Syne',sans-serif;font-size:12.5px;font-weight:700;color:#fff;line-height:1.2;margin-bottom:6px;}
+.sel-g{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;}
+.sel-f{display:flex;flex-direction:column;}
+.sel-k{font-size:8.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+.sel-v{font-size:13px;font-weight:700;color:var(--accent);font-family:'Syne',sans-serif;}
+.sel-d{font-size:10px;margin-top:7px;font-weight:600;}
+.sel-vazio{font-size:11px;color:var(--muted);font-style:italic;line-height:1.5;
+  padding:9px 11px;border-left:2px solid var(--border);margin-bottom:13px;}
+/* escala com indicador de posição */
+.scale-wrap{position:relative;padding-top:17px;}
+.scale-ind{position:absolute;top:1px;transform:translateX(-50%);transition:left .22s ease;}
+.scale-ind i{display:block;width:0;height:0;margin:0 auto;border-left:5px solid transparent;
+  border-right:5px solid transparent;border-top:6px solid var(--accent);}
+.scale-ind b{display:block;position:absolute;top:-15px;left:50%;transform:translateX(-50%);
+  font-family:'Syne',sans-serif;font-size:9.5px;font-weight:700;color:#000;white-space:nowrap;
+  background:var(--accent);padding:1px 6px;border-radius:3px;}
+.scale-line{position:absolute;top:17px;width:2px;height:15px;background:var(--accent);
+  transform:translateX(-50%);box-shadow:0 0 5px rgba(255,239,0,.85);transition:left .22s ease;}
+.lgd-lab{display:flex;justify-content:space-between;font-family:'Syne',sans-serif;
+  font-size:9px;font-weight:600;color:var(--muted);margin-top:5px;}
+@media(max-width:1100px){#rb{display:none;}}
+.sec{border-bottom:1px solid var(--border);flex-shrink:0;padding-bottom:11px;}
+.lbl{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;color:var(--muted);
+  letter-spacing:.08em;text-transform:uppercase;padding:13px 16px 8px;display:block;}
+.hint{font-size:10.5px;color:var(--muted);line-height:1.5;padding:0 16px;font-style:italic;}
+
+.esc{display:flex;margin:0 16px 6px;border-radius:8px;overflow:hidden;border:1px solid var(--border);}
+.esc button{flex:1;background:var(--bg-card);border:none;color:var(--muted);font-family:'DM Sans',sans-serif;
+  font-size:11.5px;font-weight:600;padding:9px 6px;cursor:pointer;transition:all .15s;line-height:1.25;}
+.esc button small{display:block;font-size:9.5px;font-weight:400;opacity:.75;margin-top:2px;}
+.esc button.on{background:rgba(255,239,0,.14);color:var(--accent);}
+.tm{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 16px;}
+.tm button{background:var(--bg-card);border:1px solid var(--border);color:var(--muted);
+  font-family:'DM Sans',sans-serif;font-size:11px;padding:8px 5px;border-radius:7px;cursor:pointer;transition:all .15s;}
+.tm button.on{border-color:var(--accent);color:var(--accent);background:rgba(255,239,0,.08);}
+.tm button:last-child{grid-column:1/-1;}
+#erro-file{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:99998;
+  background:var(--bg-panel2);border:1px solid rgba(255,239,0,.5);border-top:4px solid var(--accent);
+  border-radius:12px;padding:24px 28px;max-width:460px;font-size:13px;line-height:1.65;
+  color:var(--text);box-shadow:0 12px 40px rgba(0,0,0,.6);display:none;}
+#erro-file b{color:var(--accent);}
+#erro-file code{background:rgba(255,255,255,.08);padding:2px 7px;border-radius:4px;
+  font-family:monospace;font-size:12px;color:#fff;display:inline-block;margin:2px 0;}
+#status-tiles{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:7000;
+  background:rgba(15,34,54,.94);border:1px solid var(--border);border-radius:7px;
+  padding:6px 14px;font-size:11px;color:var(--muted);display:none;}
+#zoom-aviso{position:fixed;top:calc(var(--header-h) + 16px);left:50%;transform:translateX(-50%);
+  background:rgba(255,239,0,.94);color:#000;font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
+  padding:9px 18px;border-radius:8px;z-index:7000;box-shadow:0 4px 16px rgba(0,0,0,.4);display:none;}
+#tema{width:100%;background:var(--bg-card);border:1px solid var(--border);color:var(--text);
+  font-family:'DM Sans',sans-serif;font-size:11.5px;padding:7px 9px;border-radius:6px;cursor:pointer;}
+
+.ltr{display:flex;align-items:center;gap:10px;padding:6px 16px;}
+.ltr label:not(.tg){flex:1;font-size:12px;color:var(--text);cursor:pointer;}
+.tg{position:relative;width:32px;height:18px;flex:0 0 32px;}
+.tg input{opacity:0;width:0;height:0;position:absolute;}
+.trk{position:absolute;inset:0;background:var(--bg-card);border-radius:9px;cursor:pointer;transition:background .2s;border:1px solid var(--border);}
+.trk::after{content:'';position:absolute;left:2px;top:2px;width:12px;height:12px;background:var(--muted);border-radius:50%;transition:all .2s;}
+.tg input:checked + .trk{background:rgba(255,239,0,.15);border-color:var(--accent);}
+.tg input:checked + .trk::after{background:var(--accent);left:16px;}
+.opr{display:flex;align-items:center;gap:9px;padding:2px 16px 4px 34px;}
+.opr label{font-size:10px;color:var(--muted);width:58px;flex-shrink:0;}
+.opr input{flex:1;height:3px;accent-color:var(--accent);cursor:pointer;}
+.opr span{font-size:10px;color:var(--muted);width:30px;text-align:right;}
+
+#lg{padding:12px 14px;}
+.g{margin-bottom:15px;}
+.gt{font-family:'Syne',sans-serif;font-size:9.5px;font-weight:700;color:var(--muted);
+  letter-spacing:.07em;text-transform:uppercase;margin-bottom:7px;}
+.li{display:flex;align-items:center;gap:8px;margin-bottom:4px;cursor:pointer;padding:2px 4px;border-radius:4px;transition:opacity .15s;}
+.li:hover{background:rgba(255,255,255,.06);}
+.li.off{opacity:.32;}
+.li.off .sw{filter:grayscale(1);}
+.sw{width:17px;height:12px;border-radius:2px;flex-shrink:0;border:1px solid rgba(255,255,255,.15);}
+.li span{font-size:11px;color:var(--text);line-height:1.3;flex:1;}
+.li .cnt{font-size:9.5px;color:var(--muted);font-variant-numeric:tabular-nums;}
+.note{font-size:10px;color:var(--muted);line-height:1.5;padding:5px 3px 0;font-style:italic;}
+.rk{display:flex;align-items:center;gap:7px;padding:3px 4px;border-radius:4px;font-size:11px;cursor:pointer;}
+.rk:hover{background:rgba(255,255,255,.06);}
+.rk .n{width:14px;color:var(--muted);font-size:10px;text-align:right;flex-shrink:0;}
+.rk .m{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.rk .p{font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent);flex-shrink:0;}
+
+.bmr{display:flex;gap:7px;padding:0 16px;}
+.bmb{flex:1;background:var(--bg-card);border:1px solid var(--border);color:var(--muted);
+  font-size:11px;padding:6px 4px;border-radius:6px;cursor:pointer;text-align:center;font-family:'DM Sans',sans-serif;}
+.bmb.on{border-color:var(--accent);color:var(--accent);background:rgba(255,239,0,.08);}
+
+.leaflet-popup-content-wrapper{background:var(--bg-panel2)!important;border:1px solid var(--border)!important;
+  border-top:3px solid var(--accent)!important;border-radius:10px!important;
+  box-shadow:0 8px 32px rgba(0,0,0,.5)!important;width:330px!important;}
+.leaflet-popup-tip{background:var(--bg-panel2)!important;}
+.leaflet-popup-content{color:var(--text)!important;font-family:'DM Sans',sans-serif!important;font-size:12px!important;
+  margin:0!important;padding:14px 16px!important;max-height:62vh!important;overflow-y:auto!important;overflow-x:hidden!important;}
+.leaflet-popup-close-button{color:var(--muted)!important;}
+.ph{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;color:#fff;margin-bottom:2px;line-height:1.15;}
+.ps{font-size:10px;color:var(--accent);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:10px;}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px 12px;margin:9px 0 4px;}
+.pf{display:flex;flex-direction:column;}
+.pk{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+.pv{font-size:14px;font-weight:700;color:var(--accent);font-family:'Syne',sans-serif;}
+.chart{margin-top:11px;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);}
+.chart-t{font-family:'Syne',sans-serif;font-size:9px;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--muted);margin-bottom:7px;}
+.bar-row{margin-bottom:8px;}
+.bar-lb{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:3px;}
+.bar-lb .n{font-size:11px;color:var(--text);}
+.bar-lb .v{font-size:11.5px;font-weight:700;font-variant-numeric:tabular-nums;}
+.bar-bg{height:7px;background:rgba(255,255,255,.07);border-radius:4px;overflow:hidden;}
+.bar-fl{height:100%;border-radius:4px;}
+.bar-sub{font-size:9.5px;color:var(--muted);margin-top:2px;}
+.pt{width:100%;border-collapse:collapse;margin-top:9px;}
+.pt th{text-align:left;padding:5px 8px 5px 0;font-size:10px;font-weight:600;text-transform:uppercase;
+  color:var(--muted);border-bottom:1px solid rgba(255,255,255,.06);width:58%;}
+.pt td{padding:5px 0 5px 8px;font-size:12px;border-bottom:1px solid rgba(255,255,255,.06);
+  text-align:right;font-variant-numeric:tabular-nums;}
+.pt tr:last-child th,.pt tr:last-child td{border-bottom:none;}
+.tag{display:inline-block;font-size:10px;font-weight:600;padding:3px 8px;border-radius:4px;margin-top:9px;}
+.pexp{font-size:10.5px;color:var(--muted);line-height:1.5;margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.08);}
+
+
+/* barra de legenda contínua */
+.lgd-wrap{position:relative;margin:5px 0 3px;}
+.lgd-bar{height:14px;border-radius:4px;width:100%;position:relative;cursor:crosshair;
+  border:1px solid rgba(255,255,255,.12);}
+.lgd-ind{position:absolute;top:-5px;width:2px;height:24px;background:rgba(255,239,0,.95);
+  border-radius:1px;pointer-events:none;display:none;box-shadow:0 0 4px rgba(255,239,0,.5);transform:translateX(-50%);}
+.lgd-tip{position:absolute;bottom:20px;left:0;transform:translateX(-50%);background:var(--bg-panel2);
+  border:1px solid rgba(255,239,0,.5);border-radius:3px;padding:2px 6px;font-size:9px;color:var(--accent);
+  white-space:nowrap;pointer-events:none;font-family:'Syne',sans-serif;font-weight:700;display:none;z-index:5;}
+.lgd-lbl{display:flex;justify-content:space-between;font-size:9px;color:var(--muted);
+  margin-top:3px;font-family:'Syne',sans-serif;font-weight:600;}
+
+/* barra de rolagem no padrão do restante */
+.leaflet-popup-content::-webkit-scrollbar{width:5px;}
+.leaflet-popup-content::-webkit-scrollbar-track{background:transparent;}
+.leaflet-popup-content::-webkit-scrollbar-thumb{background:rgba(255,255,255,.16);border-radius:3px;}
+.leaflet-popup-content::-webkit-scrollbar-thumb:hover{background:rgba(255,239,0,.4);}
+.leaflet-popup-content{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.16) transparent;}
+
+
+#md{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px);z-index:99000;align-items:center;justify-content:center;}
+#md.open{display:flex;}
+#mb{background:var(--bg-panel2);border:1px solid var(--border);border-radius:14px;padding:26px 30px;width:340px;}
+#mt{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:8px;}
+#mdesc{font-size:12px;color:var(--muted);margin:0 0 18px;}
+#mbtn{display:flex;gap:10px;margin-bottom:14px;}
+#mst{font-size:11px;color:var(--accent);min-height:16px;margin-bottom:10px;text-align:center;}
+#mcl{width:100%;background:none;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:12px;padding:8px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.eb{flex:1;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;padding:12px;cursor:pointer;font-family:'DM Sans',sans-serif;}
+.eb:hover{border-color:var(--accent);color:var(--accent);}
+
+#ob{position:fixed;inset:0;z-index:99999;background:rgba(1,48,90,.93);backdrop-filter:blur(6px);display:none;align-items:center;justify-content:center;}
+#ob.visible{display:flex;}
+#obb{background:var(--bg-panel2);border:1px solid var(--border);border-radius:16px;padding:30px;max-width:460px;width:92%;}
+#obi{font-size:32px;margin-bottom:10px;}
+#obt{font-family:'Syne',sans-serif;font-size:20px;font-weight:800;color:#fff;margin-bottom:10px;}
+#obd{font-size:13px;color:var(--muted);line-height:1.65;margin-bottom:16px;}
+#obd b{color:var(--text);}
+#obl{background:rgba(255,255,255,.04);border-radius:8px;padding:11px 13px;margin-bottom:18px;font-size:12px;line-height:1.7;color:var(--muted);}
+#obbt{width:100%;background:var(--accent);color:#000;font-family:'Syne',sans-serif;font-size:14px;font-weight:700;padding:12px;border:none;border-radius:8px;cursor:pointer;}
+</style>
+</head>
+<body>
+
+<div id="hd">
+  <div class="dot"></div>
+  <div>
+    <h1>Cadastro <span>Imobiliário e Edificações</span></h1>
+    <p class="sub">Revisão do Plano Diretor · Bragança Paulista</p>
+  </div>
+  <div class="sep"></div>
+  <span class="badge">CADASTRO MUNICIPAL</span>
+  <a id="back" href="../portal.html">&#8592; Portal</a>
+  <button class="hbtn" onclick="abrirExport()">&#8595; Exportar</button>
+  <button class="hbtn" onclick="togglePainel()">&#9776; Painel</button>
+  <button class="hbtn" onclick="toggleLegenda()">&#9636; Legenda</button>
+</div>
+
+<div id="map"></div>
+<div id="zoom-aviso">Aproxime o mapa para carregar o cadastro</div>
+<div id="erro-file">
+  <b>O mapa precisa ser aberto por um servidor</b><br>
+  Os dados são carregados em blocos (tiles) e o navegador bloqueia esse acesso
+  quando o arquivo é aberto direto do disco.<br><br>
+  <b>Como abrir:</b> no terminal, dentro desta pasta, execute<br>
+  <code>python3 -m http.server 8000</code><br>
+  e acesse <code>http://localhost:8000</code><br><br>
+  Publicado no GeoPortal, funciona normalmente.
+</div>
+<div id="status-tiles"></div>
+
+<div id="sb" class="pane">
+  <div class="sec">
+    <span class="lbl">Tema</span>
+    <div class="tm">
+      <button id="t-uso" class="on" onclick="setTema('uso')">Uso e ocupação</button>
+      <button id="t-situacao" onclick="setTema('situacao')">Cheios e vazios</button>
+      <button id="t-gabarito" onclick="setTema('gabarito')">Gabarito</button>
+      <button id="t-taxa" onclick="setTema('taxa')">Taxa de ocupação</button>
+      <button id="t-edif" onclick="setTema('edif')">Edificações</button>
+    </div>
+    <p class="hint" id="esc-hint">Uso e ocupação declarado no cadastro imobiliário. Base do mapa 13.</p>
+  </div>
+
+  <div class="sec">
+    <span class="lbl">Camadas</span>
+    <div class="ltr"><label for="k-lotes">Lotes (cadastro)</label>
+      <label class="tg"><input type="checkbox" id="k-lotes" checked onchange="cam('lotes',this.checked)"><span class="trk"></span></label></div>
+    <div class="opr"><label>Opacidade</label>
+      <input type="range" min="0" max="1" step=".05" value=".82" oninput="op(this.value);this.nextElementSibling.textContent=Math.round(this.value*100)+'%'"><span>82%</span></div>
+    <div class="ltr"><label for="k-mun">Perímetro municipal</label>
+      <label class="tg"><input type="checkbox" id="k-mun" checked onchange="cam('mun',this.checked)"><span class="trk"></span></label></div>
+    <div class="ltr"><label for="k-edif">Edificações</label>
+      <label class="tg"><input type="checkbox" id="k-edif" checked onchange="cam('edif',this.checked)"><span class="trk"></span></label></div>
+  </div>
+
+  <div class="sec">
+    <span class="lbl">Mapa base</span>
+    <div class="bmr">
+      <button class="bmb on" onclick="bm('dark',this)">Escuro</button>
+      <button class="bmb" onclick="bm('osm',this)">Mapa</button>
+      <button class="bmb" onclick="bm('sat',this)">Satélite</button>
+    </div>
+  </div>
+
+</div>
+
+<div id="rb" class="pane">
+  <div class="pane-h"><span id="rb-t">Legenda</span></div>
+  <div class="pane-b"><div id="lg"></div></div>
+</div>
+
+<div id="md"><div id="mb">
+  <div id="mt">&#8595; Exportar mapa</div>
+  <p id="mdesc">O mapa é capturado como está na tela, com a legenda do indicador selecionado.</p>
+  <div id="mbtn"><button class="eb" onclick="exportar('jpeg')">Imagem JPEG</button>
+    <button class="eb" onclick="exportar('pdf')">PDF</button></div>
+  <div id="mst"></div><button id="mcl" onclick="fecharExport()">Cancelar</button>
+</div></div>
+
+<div id="ob"><div id="obb">
+  <div id="obi">&#127959;</div>
+  <div id="obt">Cadastro e Edificações</div>
+  <div id="obd">Cadastro imobiliário e projeção das edificações, revisados pelo Cadastro Municipal. São <b>70.619 lotes</b> e <b>83.558 edificações</b>, base para os mapas de uso e ocupação do solo, cheios e vazios e gabarito.</div>
+  <div id="obl">
+    <b style="color:#e8eaf0">Uso e ocupação</b> · <b style="color:#e8eaf0">Cheios e vazios</b><br>
+    <b style="color:#e8eaf0">Gabarito</b> · <b style="color:#e8eaf0">Taxa de ocupação</b> · <b style="color:#e8eaf0">Edificações</b>
+  </div>
+  <div id="obd">O volume de dados exige <b>aproximar o mapa</b> — o cadastro carrega a partir do zoom 13, sob demanda. Clique num lote para ver seus dados.</div>
+  <button id="obbt" onclick="fecharOb()">Explorar o mapa</button>
+</div></div>
+
+<script src="js/Leaflet.VectorGrid.js"></script>
+<script src="data/json_municipio.js"></script>
+
+<script>
+(function(){
+var map=L.map('map',{zoomControl:false,maxZoom:19,minZoom:11})
+  .setView([-22.9530,-46.5420],14);
+L.control.zoom({position:'topright'}).addTo(map);
+
+var bms={
+ dark:L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:20,crossOrigin:'anonymous'}),
+ osm:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:19,crossOrigin:'anonymous'}),
+ sat:L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}',{attribution:'Google',maxZoom:20,crossOrigin:'anonymous'})};
+bms.dark.addTo(map);
+['mun','lot','edi'].forEach(function(p,i){map.createPane('p_'+p);map.getPane('p_'+p).style.zIndex=400+i;});
+
+// ── paletas ───────────────────────────────────────────────────────────────
+var USO={'Residencial':'#4a90d9','Terreno Vago':'#9aa5b1','Comercial/ Serviço':'#f5a623',
+  'Uso Misto':'#bd7ce0','Institucional':'#50c8a8','Religioso/Habitação':'#e0629b',
+  'Indust. Agropec.':'#8d6e63','Serv. Publico':'#26a69a','Outros':'#78909c'};
+var SIT={'Edificado':'#f5a623','Vazio':'#2b3f55'};
+var GAB={0:'#2b3f55',1:'#fee5d9',2:'#fcae91',3:'#fb6a4a',4:'#de2d26',5:'#a50f15',6:'#67000d'};
+var TXO=[[0,'#2b3f55'],[20,'#eff3ff'],[40,'#bdd7e7'],[60,'#6baed6'],[80,'#3182bd'],[101,'#08519c']];
+var PAV={0:'#607d8b',1:'#fee5d9',2:'#fcae91',3:'#fb6a4a',4:'#de2d26',5:'#a50f15',6:'#67000d'};
+
+var TEMAS={
+ uso:      {lbl:'Uso e ocupação',      camada:'lotes'},
+ situacao: {lbl:'Cheios e vazios',     camada:'lotes'},
+ gabarito: {lbl:'Gabarito (pavimentos)',camada:'lotes'},
+ taxa:     {lbl:'Taxa de ocupação',    camada:'lotes'},
+ edif:     {lbl:'Edificações',         camada:'edificacoes'}};
+var tema='uso', OP=0.85, FILTRO={}, SEL=null, mostraEdif=true;
+
+function nf(v,d){return v==null||isNaN(v)?'—':Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d||0,maximumFractionDigits:d||0});}
+function corTaxa(v){if(v==null)return '#2b3f55';
+  for(var i=0;i<TXO.length;i++) if(v<TXO[i][0]) return TXO[i][1];
+  return TXO[TXO.length-1][1];}
+function classeDe(p){
+  if(tema==='uso') return p.uso||'Sem informação';
+  if(tema==='situacao') return p.situacao;
+  if(tema==='gabarito') return p.gabarito>0?p.gabarito+(p.gabarito>1?' pavimentos':' pavimento'):'Sem edificação';
+  if(tema==='taxa'){var v=p.taxa_ocupacao;
+    if(!p.n_edif) return 'Sem edificação';
+    return v<20?'Até 20%':v<40?'20 a 40%':v<60?'40 a 60%':v<80?'60 a 80%':'Acima de 80%';}
+  return '';}
+function corLote(p){
+  if(tema==='uso') return USO[p.uso]||'#78909c';
+  if(tema==='situacao') return SIT[p.situacao]||'#2b3f55';
+  if(tema==='gabarito') return GAB[Math.min(6,p.gabarito||0)];
+  if(tema==='taxa') return p.n_edif?corTaxa(p.taxa_ocupacao):'#2b3f55';
+  return '#4a90d9';}
+function ocultoLote(p){return FILTRO[tema] && !FILTRO[tema].has(classeDe(p));}
+
+// ── camadas ───────────────────────────────────────────────────────────────
+var Lmun=L.geoJson(json_municipio,{pane:'p_mun',interactive:false,
+  style:{color:'#FFEF00',weight:2.2,opacity:.9,fill:false}}).addTo(map);
+
+function estiloLotes(p){
+  if(ocultoLote(p)) return {fill:false,stroke:false};
+  return {fill:true,fillColor:corLote(p),fillOpacity:OP,
+          color:'#0d1b2a',weight:.25,opacity:.5};}
+function estiloEdif(p){
+  if(!mostraEdif) return {fill:false,stroke:false};
+  return {fill:true,fillColor:PAV[Math.min(6,p.pav||0)],fillOpacity:tema==='edif'?.92:.55,
+          color:'#1a1008',weight:.15,opacity:.4};}
+
+var Vlotes=L.vectorGrid.protobuf('tiles/{z}/{x}/{y}.lotes.pbf',{
+  pane:'p_lot',rendererFactory:L.canvas.tile,interactive:true,minZoom:13,maxZoom:19,maxNativeZoom:16,
+  vectorTileLayerStyles:{lotes:function(p){return estiloLotes(p);}},
+  getFeatureId:function(f){return f.properties.cod_reduz;}}).addTo(map);
+
+var Vedif=L.vectorGrid.protobuf('tiles/{z}/{x}/{y}.edificacoes.pbf',{
+  pane:'p_edi',rendererFactory:L.canvas.tile,interactive:true,minZoom:13,maxZoom:19,maxNativeZoom:16,
+  vectorTileLayerStyles:{edificacoes:function(p){return estiloEdif(p);}}}).addTo(map);
+
+// ── popups ────────────────────────────────────────────────────────────────
+function barra(lb,val,pct,c,sub){
+  return '<div class="bar-row"><div class="bar-lb"><span class="n">'+lb+'</span>'+
+   '<span class="v" style="color:'+c+'">'+val+'</span></div>'+
+   '<div class="bar-bg"><div class="bar-fl" style="width:'+Math.max(0,Math.min(100,pct))+'%;background:'+c+'"></div></div>'+
+   (sub?'<div class="bar-sub">'+sub+'</div>':'')+'</div>';}
+
+function popLote(p){
+  var c=corLote(p);
+  var t='<div class="ph">Lote '+(p.cod_reduz||'—')+'</div>'+
+        '<div class="ps">'+(p.uso||'Sem informação de uso')+'</div>';
+  t+='<div class="pgrid">'+
+     '<div class="pf"><span class="pk">Área do lote</span><span class="pv">'+nf(p.area_lote)+'</span></div>'+
+     '<div class="pf"><span class="pk">Área construída</span><span class="pv" style="color:'+c+'">'+nf(p.area_construida)+'</span></div>'+
+     '</div><div class="bar-sub">metros quadrados</div>';
+  if(p.n_edif>0){
+    t+='<div class="chart"><div class="chart-t">Ocupação do lote</div>';
+    t+=barra('Taxa de ocupação',nf(p.taxa_ocupacao,1)+'%',p.taxa_ocupacao,corTaxa(p.taxa_ocupacao),
+       'mediana do município: 67,9%');
+    t+=barra('Gabarito',nf(p.gabarito)+(p.gabarito>1?' pavimentos':' pavimento'),p.gabarito/6*100,
+       GAB[Math.min(6,p.gabarito)],'o mais alto do município tem 6');
+    t+='</div>';
+  }else t+='<div class="chart"><div class="chart-t">Ocupação do lote</div>'+
+     '<div class="bar-sub" style="color:#9aa5b1">Sem edificação identificada neste lote.</div></div>';
+  t+='<table class="pt">'+
+     '<tr><th>Situação</th><td>'+p.situacao+'</td></tr>'+
+     '<tr><th>Edificações</th><td>'+nf(p.n_edif)+'</td></tr>'+
+     (p.n_unidades>1?'<tr><th>Unidades cadastrais</th><td>'+nf(p.n_unidades)+'</td></tr>':'')+
+     (p.tem_habite_se>0?'<tr><th>Com habite-se</th><td>'+nf(p.tem_habite_se)+'</td></tr>':'')+
+     '</table>';
+  if(p.n_unidades>1)
+    t+='<div class="pexp">Lote com '+nf(p.n_unidades)+' unidades cadastrais — condomínio ou edificação multifamiliar.</div>';
+  return t;}
+
+function popEdif(p){
+  var c=PAV[Math.min(6,p.pav||0)];
+  return '<div class="ph">Edificação</div><div class="ps">'+
+    (p.pav>0?p.pav+(p.pav>1?' pavimentos':' pavimento'):'sem pavimento informado')+'</div>'+
+    '<div class="pgrid">'+
+    '<div class="pf"><span class="pk">Área</span><span class="pv">'+nf(p.area_edif)+' m²</span></div>'+
+    '<div class="pf"><span class="pk">Pavimentos</span><span class="pv" style="color:'+c+'">'+nf(p.pav)+'</span></div>'+
+    '</div><table class="pt">'+
+    '<tr><th>Setor</th><td>'+(p.setor||'—')+'</td></tr>'+
+    '<tr><th>Quadra</th><td>'+(p.quadra||'—')+'</td></tr>'+
+    '<tr><th>Lote</th><td>'+(p.lote||'—')+'</td></tr></table>'+
+    '<div class="pexp">Projeção da edificação sobre o terreno, revisada pelo Cadastro Municipal.</div>';}
+
+Vlotes.on('click',function(e){
+  if(ocultoLote(e.layer.properties))return;
+  SEL=e.layer.properties; legenda();
+  L.popup({maxHeight:420}).setContent(popLote(e.layer.properties)).setLatLng(e.latlng).openOn(map);
+  L.DomEvent.stop(e);});
+Vedif.on('click',function(e){
+  if(!mostraEdif)return;
+  L.popup({maxHeight:380}).setContent(popEdif(e.layer.properties)).setLatLng(e.latlng).openOn(map);
+  L.DomEvent.stop(e);});
+
+// ── legenda ───────────────────────────────────────────────────────────────
+var CLASSES={
+ uso:[['Residencial',USO['Residencial']],['Terreno Vago',USO['Terreno Vago']],
+      ['Comercial/ Serviço',USO['Comercial/ Serviço']],['Uso Misto',USO['Uso Misto']],
+      ['Institucional',USO['Institucional']],['Religioso/Habitação',USO['Religioso/Habitação']],
+      ['Indust. Agropec.',USO['Indust. Agropec.']],['Serv. Publico',USO['Serv. Publico']],
+      ['Outros',USO['Outros']],['Sem informação','#78909c']],
+ situacao:[['Edificado',SIT['Edificado']],['Vazio',SIT['Vazio']]],
+ gabarito:[['1 pavimento',GAB[1]],['2 pavimentos',GAB[2]],['3 pavimentos',GAB[3]],
+           ['4 pavimentos',GAB[4]],['5 pavimentos',GAB[5]],['6 pavimentos',GAB[6]],
+           ['Sem edificação',GAB[0]]],
+ taxa:[['Até 20%','#eff3ff'],['20 a 40%','#bdd7e7'],['40 a 60%','#6baed6'],
+       ['60 a 80%','#3182bd'],['Acima de 80%','#08519c'],['Sem edificação','#2b3f55']],
+ edif:[['1 pavimento',PAV[1]],['2 pavimentos',PAV[2]],['3 pavimentos',PAV[3]],
+       ['4 pavimentos',PAV[4]],['5 pavimentos',PAV[5]],['6 pavimentos',PAV[6]]]};
+
+var STATS={
+ uso:[['Residencial',47680],['Terreno Vago',14754],['Comercial/ Serviço',2989],['Uso Misto',932],
+      ['Religioso/Habitação',123],['Institucional',82],['Indust. Agropec.',70],['Serv. Publico',52],
+      ['Outros',13],['Sem informação',3924]],
+ situacao:[['Edificado',44066],['Vazio',26553]],
+ gabarito:[['1 pavimento',26192],['2 pavimentos',16669],['3 pavimentos',1112],
+           ['4 pavimentos',80],['5 pavimentos',11],['6 pavimentos',2],['Sem edificação',26553]],
+ edif:[['1 pavimento',62761],['2 pavimentos',19405],['3 pavimentos',1243],
+       ['4 pavimentos',133],['5 pavimentos',11],['6 pavimentos',2]]};
+
+function legenda(){
+  var h='', cl=CLASSES[tema], st=STATS[tema];
+  if(SEL){
+    var c=corLote(SEL);
+    h+='<div class="sel-card" style="border-left-color:'+c+'"><div class="sel-n">Lote '+(SEL.cod_reduz||'—')+'</div>'+
+       '<div class="sel-g">'+
+       '<div class="sel-f"><span class="sel-k">Uso</span><span class="sel-v" style="font-size:11px;color:'+c+'">'+(SEL.uso||'—')+'</span></div>'+
+       '<div class="sel-f"><span class="sel-k">Gabarito</span><span class="sel-v">'+(SEL.gabarito||'—')+'</span></div>'+
+       '<div class="sel-f"><span class="sel-k">Área do lote</span><span class="sel-v" style="font-size:11.5px">'+nf(SEL.area_lote)+' m²</span></div>'+
+       '<div class="sel-f"><span class="sel-k">Taxa ocupação</span><span class="sel-v" style="font-size:11.5px">'+
+         (SEL.n_edif?nf(SEL.taxa_ocupacao,1)+'%':'—')+'</span></div>'+
+       '</div></div>';
+  }else h+='<div class="sel-vazio">Clique num lote para ver seus dados. Aproxime para carregar o cadastro — os dados aparecem a partir do zoom 13.</div>';
+
+  h+='<div class="g"><div class="gt">'+TEMAS[tema].lbl+'</div>';
+  cl.forEach(function(x){
+    var on=!FILTRO[tema]||FILTRO[tema].has(x[0]);
+    var n=st?(st.filter(function(y){return y[0]===x[0];})[0]||[0,null])[1]:null;
+    h+='<div class="li'+(on?'':' off')+'"'+(tema!=='edif'?' onclick="filtrar(\''+x[0].replace(/'/g,"\\'")+'\')"':'')+'>'+
+       '<div class="sw" style="background:'+x[1]+'"></div><span>'+x[0]+'</span>'+
+       (n!=null?'<span class="cnt">'+nf(n)+'</span>':'')+'</div>';});
+  if(tema!=='edif') h+='<div class="note">Clique numa classe para ocultá-la.</div>';
+  h+='</div>';
+
+  if(st){
+    var tot=st.reduce(function(a,x){return a+x[1];},0);
+    h+='<div class="g"><div class="gt">Distribuição</div>';
+    st.slice(0,7).forEach(function(x){
+      var cor=(cl.filter(function(y){return y[0]===x[0];})[0]||[0,'#78909c'])[1];
+      h+='<div class="bar-row"><div class="bar-lb"><span class="n" style="font-size:10px">'+x[0]+'</span>'+
+         '<span class="v" style="color:'+cor+';font-size:10.5px">'+nf(x[1]/tot*100,1)+'%</span></div>'+
+         '<div class="bar-bg" style="height:5px"><div class="bar-fl" style="width:'+(x[1]/tot*100)+'%;background:'+cor+'"></div></div></div>';});
+    h+='</div>';}
+
+  h+='<div class="g"><div class="gt">Síntese do cadastro</div><table class="pt" style="margin-top:0">'+
+     '<tr><th>Lotes cadastrados</th><td>70.619</td></tr>'+
+     '<tr><th>Edificados</th><td>44.066 (62,4%)</td></tr>'+
+     '<tr><th>Vazios</th><td>26.553 (37,6%)</td></tr>'+
+     '<tr><th>Edificações</th><td>83.558</td></tr>'+
+     '<tr><th>Piscinas</th><td>3.256</td></tr>'+
+     '<tr><th>Área construída</th><td>8,15 km²</td></tr>'+
+     '<tr><th>Taxa de ocupação mediana</th><td>67,9%</td></tr></table></div>';
+
+  h+='<div class="g"><div class="note" style="font-style:normal;background:rgba(255,239,0,.07);'+
+     'border-left:2px solid var(--accent);padding:9px 10px;border-radius:0 5px 5px 0">'+
+     '<b style="color:var(--accent)">Sobre o dado</b><br>Cadastro imobiliário e projeção das edificações, '+
+     'revisados pelo Cadastro Municipal. O gabarito e a taxa de ocupação foram calculados cruzando '+
+     'espacialmente as duas camadas. Base para os mapas 13, 14 e 15.</div></div>';
+  document.getElementById('lg').innerHTML=h;}
+
+// ── controles ─────────────────────────────────────────────────────────────
+window.setTema=function(t){
+  tema=t; SEL=null;
+  ['uso','situacao','gabarito','taxa','edif'].forEach(function(k){
+    var b=document.getElementById('t-'+k); if(b)b.classList.toggle('on',k===t);});
+  document.getElementById('esc-hint').textContent={
+    uso:'Uso e ocupação declarado no cadastro imobiliário. Base do mapa 13.',
+    situacao:'Lotes com e sem edificação identificada. Base do mapa 14, de cheios e vazios.',
+    gabarito:'Número de pavimentos da edificação mais alta de cada lote. Base do mapa 15.',
+    taxa:'Área construída sobre a área do lote. Indica o quanto cada terreno está ocupado.',
+    edif:'Projeção das edificações, coloridas pelo número de pavimentos.'}[t];
+  mostraEdif = (t==='edif') || document.getElementById('k-edif').checked;
+  Vlotes.setStyle?0:0;
+  Vlotes.redraw(); Vedif.redraw(); legenda();};
+window.filtrar=function(cls){
+  if(!FILTRO[tema]) FILTRO[tema]=new Set(CLASSES[tema].map(function(x){return x[0];}));
+  if(FILTRO[tema].has(cls)) FILTRO[tema].delete(cls); else FILTRO[tema].add(cls);
+  Vlotes.redraw(); SEL=null; legenda();};
+window.cam=function(k,on){
+  if(k==='lotes'){ if(on)Vlotes.addTo(map); else map.removeLayer(Vlotes); }
+  if(k==='edif'){ mostraEdif=on; if(on)Vedif.addTo(map); else map.removeLayer(Vedif); legenda(); }
+  if(k==='mun'){ if(on)Lmun.addTo(map); else map.removeLayer(Lmun); }};
+window.op=function(v){OP=parseFloat(v);Vlotes.redraw();};
+window.bm=function(n,b){Object.values(bms).forEach(function(l){map.removeLayer(l);});
+  bms[n].addTo(map);bms[n].bringToBack();
+  document.querySelectorAll('.bmb').forEach(function(x){x.classList.remove('on');});b.classList.add('on');};
+window.togglePainel=function(){document.getElementById('sb').classList.toggle('hidden');};
+window.toggleLegenda=function(){document.getElementById('rb').classList.toggle('hidden');};
+
+// ── diagnóstico de carregamento ───────────────────────────────────────────
+if(location.protocol==='file:'){
+  document.getElementById('erro-file').style.display='block';
+  document.getElementById('ob').classList.remove('visible');
+}
+
+var _ok=0,_err=0;
+function status(){
+  var el=document.getElementById('status-tiles');
+  if(!el)return;
+  if(_err>0&&_ok===0){
+    el.style.display='block';
+    el.innerHTML='<span style="color:#fb923c">Nenhum bloco de dados carregou.</span> '+
+      'Verifique se a pasta <b>tiles/</b> acompanha o index.html.';
+  }else if(_ok>0){ el.style.display='none'; }
+}
+[Vlotes,Vedif].forEach(function(v){
+  v.on('load',function(){ _ok++; status(); });
+  v.on('tileerror',function(){ _err++; status(); });
+});
+
+// aviso de zoom
+function aviso(){
+  var z=map.getZoom(), el=document.getElementById('zoom-aviso');
+  if(el) el.style.display = z<13 ? 'block' : 'none';}
+map.on('zoomend',aviso); aviso();
+
+var OB='bp_cadastro_v1';
+window.fecharOb=function(){document.getElementById('ob').classList.remove('visible');localStorage.setItem(OB,'1');};
+if(!localStorage.getItem(OB))document.getElementById('ob').classList.add('visible');
+
+legenda();
+})();
+</script>
+</body>
+</html>
