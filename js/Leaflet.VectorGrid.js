@@ -2039,9 +2039,10 @@ L.VectorGrid = L.GridLayer.extend({
 					}
 
 					for (var j = 0; j < styleOptions.length; j++) {
-                        if (styleOptions[j] instanceof Function) {
-                            var styleOption = styleOptions[j](feat.properties, coords.z, feat.type);
-                        }
+						var styleOption = styleOptions[j];
+						if (styleOption instanceof Function) {
+							styleOption = styleOption(feat.properties, coords.z, feat.type);
+						}
 						var style = L.extend({}, L.Path.prototype.options, styleOption);
 						featureLayer.render(renderer, style);
 						renderer._addPath(featureLayer);
